@@ -11,12 +11,26 @@ A small shock to one borrower can become a group-level risk when borrowers are c
 - **Independent deterioration** — the borrower has high own financial pressure even without strong network pressure.
 - **Mixed / high risk** — both direct financial weakness and network pressure are high.
 
+## What's new in this pass
+
+- **Guided onboarding tour.** First-time visitors see a welcome card and can step through a 9-stop spotlight tour of every part of the app (skippable, replayable any time from the footer button, keyboard-navigable with ← → and Esc).
+- **Inline glossary tooltips.** Small "?" badges next to jargon like *shock size*, *ripple round*, *own finances*, *network pressure*, and *hidden network risk* explain terms in place, no docs required.
+- **Live story progress.** The four-step bar at the top now highlights and checks off where you are (spark → ripple → hidden risk → intervention) as you use the app.
+- **Loading and error states.** Buttons disable and stats pulse while a request is in flight; failed requests show a dismissible banner with a retry action instead of failing silently.
+- **Accessibility pass.** Keyboard-focusable network nodes with ARIA labels, visible focus rings, `prefers-reduced-motion` support, and semantic roles on the risk meter and error banner.
+- **Visual refresh.** A distinct type pairing (Fraunces for headings, IBM Plex Sans for UI), refined dark palette, hover/selection states on the network graph, and a cleaner responsive layout down to small phones.
+
 ## UX / hackathon highlights
 
-- Story-driven four-step flow: spark → ripple → hidden risk → intervention.
-- Clickable borrower nodes with a live explanation card.
+- Story-driven four-step flow: spark → ripple → hidden risk → intervention, with the step bar lighting up as you progress.
+- **Built-in guided tour** for new users: a 6-step spotlight walkthrough (▶ button in the header, replayable anytime from the footer or the floating `?` button bottom-right). First-time visitors see it automatically; it won't reappear once dismissed (remembered in the browser).
+- Inline "?" info tooltips next to the shock-size control and the own-finances / network-pressure numbers, explaining exactly what each score means.
+- Clickable, keyboard-accessible borrower nodes with a live explanation card, plus hover tooltips on nodes and edges.
 - Relationship types shown when edges are selected.
 - Color-coded selectors and a high-risk-only intervention view.
+- Loading states (spinner + disabled buttons) while a ripple or intervention is computing, and toast notifications confirming what happened or flagging a failed request.
+- Defensive backend input validation — unknown borrower IDs, out-of-range shock sizes/rounds, and unknown intervention actions fall back to sane defaults instead of erroring.
+- Responsive layout down to small mobile screens, visible keyboard focus states, and reduced-motion support.
 
 ## Core MVP
 
@@ -53,7 +67,7 @@ pip install -r requirements.txt
 python app.py
 ```
 
-Open `http://127.0.0.1:5000`.
+Open `http://127.0.0.1:5000`. On first load you'll see the onboarding tour — replay it any time from the "Replay tutorial" button in the footer.
 
 ## Demo story
 

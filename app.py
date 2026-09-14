@@ -1,6 +1,4 @@
 from flask import Flask, render_template, jsonify, request
-import random
-import math
 from copy import deepcopy
 
 app = Flask(__name__)
@@ -19,6 +17,7 @@ BORROWERS = [
     {"id":"B11","name":"Vikram","income":33000,"payment":7100,"buffer":19000,"stress":13},
     {"id":"B12","name":"Lata","income":25000,"payment":6200,"buffer":10000,"stress":26},
 ]
+BORROWER_IDS = {b["id"] for b in BORROWERS}
 
 # Relationship weights: shared guarantee, same livelihood, same locality, group interaction.
 EDGES = [
@@ -34,6 +33,14 @@ EDGES = [
     ("B02","B04",0.49,"Same locality"),("B06","B08",0.52,"Same locality")
 ]
 
+ACTION_LABELS = {
+    "relief": "Temporary repayment relief",
+    "grace": "Grace period",
+    "guarantee": "Reduce guarantee pressure",
+    "coaching": "Income / budgeting coaching",
+}
+
+
 def score_financial_pressure(b):
     debt_ratio = b["payment"] / max(b["income"], 1)
     liquidity_months = b["buffer"] / max(b["income"] - b["payment"], 1)
@@ -41,7 +48,8 @@ def score_financial_pressure(b):
     liquidity_score = min(100, max(0, (1.5 - liquidity_months) * 50))
     return round(0.6 * ratio_score + 0.4 * liquidity_score, 1)
 
-def classify(b, neighbor_pressure=0, own_change=0):
+
+def classify(b, neighbor_pressure=0):
     own = max(score_financial_pressure(b), b["stress"])
     contagion = min(100, neighbor_pressure)
     if contagion >= 55 and own < 65:
@@ -54,12 +62,21 @@ def classify(b, neighbor_pressure=0, own_change=0):
         return "Contained stress"
     return "Healthy"
 
+
+def clamp(value, lo, hi):
+    return max(lo, min(hi, value))
+
+
 def build_state(shock_id=None, shock_size=0.0, rounds=3):
     borrowers = deepcopy(BORROWERS)
-    stress = {b["id"]: float(b["stress"]) for b in borrowers}
 
-    if shock_id:
-        stress[shock_id] = min(100, stress[shock_id] + shock_size)
+    if shock_id not in BORROWER_IDS:
+        shock_id = "B07"
+    shock_size = clamp(shock_size, 0, 100)
+    rounds = int(clamp(rounds, 0, 12))
+
+    stress = {b["id"]: float(b["stress"]) for b in borrowers}
+    stress[shock_id] = min(100, stress[shock_id] + shock_size)
 
     history = [stress.copy()]
     for _ in range(rounds):
@@ -77,20 +94,20 @@ def build_state(shock_id=None, shock_size=0.0, rounds=3):
 
     neighbors = {b["id"]: [] for b in borrowers}
     for a, b, w, rel in EDGES:
-        neighbors[a].append((b,w,rel))
-        neighbors[b].append((a,w,rel))
+        neighbors[a].append((b, w, rel))
+        neighbors[b].append((a, w, rel))
 
     nodes = []
     for b in borrowers:
-        weighted = sum(max(0, stress[n]-35)*w for n,w,_ in neighbors[b["id"]])
+        weighted = sum(max(0, stress[n] - 35) * w for n, w, _ in neighbors[b["id"]])
         pressure = min(100, weighted * 0.85)
         own = score_financial_pressure(b)
         label = classify(b, pressure)
         nodes.append({
             **b,
-            "stress": round(stress[b["id"]],1),
+            "stress": round(stress[b["id"]], 1),
             "own_pressure": own,
-            "network_pressure": round(pressure,1),
+            "network_pressure": round(pressure, 1),
             "classification": label,
             "degree": len(neighbors[b["id"]]),
             "explanation": (
@@ -107,21 +124,31 @@ def build_state(shock_id=None, shock_size=0.0, rounds=3):
         })
     return nodes, history
 
+
 def make_edges():
-    return [{"source":a,"target":b,"weight":w,"relationship":rel} for a,b,w,rel in EDGES]
+    return [{"source": a, "target": b, "weight": w, "relationship": rel} for a, b, w, rel in EDGES]
+
 
 @app.route("/")
 def index():
     return render_template("index.html")
 
+
 @app.route("/api/state")
 def state():
     shock = request.args.get("shock", "B07")
-    size = float(request.args.get("size", "30"))
-    rounds = int(request.args.get("rounds", "4"))
+    try:
+        size = float(request.args.get("size", "30"))
+    except ValueError:
+        size = 30.0
+    try:
+        rounds = int(request.args.get("rounds", "4"))
+    except ValueError:
+        rounds = 4
     nodes, history = build_state(shock, size, rounds)
-    return jsonify({"nodes":nodes, "edges":make_edges(), "history":history,
-                    "shock": shock, "shock_size": size})
+    return jsonify({"nodes": nodes, "edges": make_edges(), "history": history,
+                     "shock": shock, "shock_size": size})
+
 
 @app.route("/api/simulate", methods=["POST"])
 def simulate():
@@ -130,34 +157,41 @@ def simulate():
     size = float(payload.get("size", 30))
     rounds = int(payload.get("rounds", 4))
     nodes, history = build_state(shock, size, rounds)
-    return jsonify({"nodes":nodes, "edges":make_edges(), "history":history,
-                    "shock": shock, "shock_size": size})
+    return jsonify({"nodes": nodes, "edges": make_edges(), "history": history,
+                     "shock": shock, "shock_size": size})
+
 
 @app.route("/api/intervention", methods=["POST"])
 def intervention():
     payload = request.get_json(silent=True) or {}
     target = payload.get("target", "B07")
+    if target not in BORROWER_IDS:
+        target = "B07"
     action = payload.get("action", "relief")
-    reduction = {"relief":18, "grace":12, "guarantee":9, "coaching":7}.get(action, 10)
+    if action not in ACTION_LABELS:
+        action = "relief"
+    reduction = {"relief": 18, "grace": 12, "guarantee": 9, "coaching": 7}.get(action, 10)
 
     before_nodes, before_history = build_state(target, 32, 4)
     # Simulate intervention by reducing the shock and one node's stress.
-    after_nodes, after_history = build_state(target, max(0, 32-reduction), 4)
+    after_nodes, after_history = build_state(target, max(0, 32 - reduction), 4)
 
-    before_map = {n["id"]:n["stress"] for n in before_nodes}
-    after_map = {n["id"]:n["stress"] for n in after_nodes}
+    before_map = {n["id"]: n["stress"] for n in before_nodes}
+    after_map = {n["id"]: n["stress"] for n in after_nodes}
     affected_before = sum(v >= 50 for v in before_map.values())
     affected_after = sum(v >= 50 for v in after_map.values())
 
     return jsonify({
         "action": action,
+        "action_label": ACTION_LABELS[action],
         "target": target,
         "before": before_map,
         "after": after_map,
         "affected_before": affected_before,
         "affected_after": affected_after,
-        "risk_reduction": round(max(0, affected_before-affected_after), 2)
+        "risk_reduction": round(max(0, affected_before - affected_after), 2)
     })
+
 
 if __name__ == "__main__":
     app.run(debug=True)

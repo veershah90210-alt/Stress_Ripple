@@ -1,4 +1,3 @@
-
 const $ = id => document.getElementById(id);
 
 const positions = {
@@ -24,6 +23,20 @@ function riskCopy(n){
   return ["Healthy","No major direct or network pressure is detected right now."];
 }
 
+/* ---------- Toasts ---------- */
+function toast(message, type="info"){
+  const host = $("toastHost");
+  const el = document.createElement("div");
+  el.className = "toast" + (type==="error" ? " error" : "");
+  el.textContent = message;
+  host.appendChild(el);
+  setTimeout(()=>{
+    el.classList.add("fade");
+    setTimeout(()=>el.remove(), 320);
+  }, 3200);
+}
+
+/* ---------- Network render ---------- */
 function renderNetwork(data){
   const svg=$("network"), ns="http://www.w3.org/2000/svg";
   svg.innerHTML="";
@@ -33,6 +46,9 @@ function renderNetwork(data){
     line.setAttribute("x1",x1);line.setAttribute("y1",y1);line.setAttribute("x2",x2);line.setAttribute("y2",y2);
     line.setAttribute("stroke-width",2+e.weight*5);line.setAttribute("class","edge");
     line.addEventListener("click",()=>{$("relationshipHint").textContent=`${e.source} ↔ ${e.target}: ${e.relationship} • connection strength ${Math.round(e.weight*100)}%`;});
+    const title=document.createElementNS(ns,"title");
+    title.textContent=`${e.source} ↔ ${e.target}: ${e.relationship}`;
+    line.appendChild(title);
     svg.appendChild(line);
   }
   for(const n of data.nodes){
@@ -41,7 +57,16 @@ function renderNetwork(data){
     circle.setAttribute("cx",x);circle.setAttribute("cy",y);circle.setAttribute("r",r);
     circle.setAttribute("fill",stressColor(n.stress));
     circle.setAttribute("class","node"+(n.stress>=50?" high-risk":""));
+    circle.setAttribute("tabindex","0");
+    circle.setAttribute("role","button");
+    circle.setAttribute("aria-label",`${n.id} ${n.name}, stress ${Math.round(n.stress)} percent`);
     circle.addEventListener("click",()=>focusBorrower(n.id,true));
+    circle.addEventListener("keydown",(ev)=>{
+      if(ev.key==="Enter"||ev.key===" "){ev.preventDefault();focusBorrower(n.id,true);}
+    });
+    const title=document.createElementNS(ns,"title");
+    title.textContent=`${n.id} — ${n.name} • ${Math.round(n.stress)}% stress`;
+    circle.appendChild(title);
     const text=document.createElementNS(ns,"text");
     text.setAttribute("x",x);text.setAttribute("y",y+4);text.setAttribute("text-anchor","middle");text.setAttribute("class","node-label");
     text.textContent=n.id;
@@ -50,7 +75,6 @@ function renderNetwork(data){
 }
 
 function renderRows(nodes){
-  // Kept simple: the focus card replaces a dense table on purpose.
   const high=nodes.filter(n=>n.stress>=50).map(n=>n.id);
   $("headline").textContent=high.length ? `${high.length} borrower(s) are crossing the high-risk line` : "The ripple is still mostly contained";
   $("subheadline").textContent=high.length ? "Now inspect whether those borrowers are failing on their own or being pulled by the network." : "That is the key question: a shock is not automatically a contagion event.";
@@ -111,31 +135,77 @@ function updateStats(nodes,history){
   $("peakRound").textContent=peak.i;
 }
 
+function markStorybarStep(step){
+  document.querySelectorAll("#storybar .step").forEach(el=>{
+    el.classList.toggle("active", Number(el.dataset.step) <= step);
+  });
+}
+
 function render(data){
   state=data;
   renderNetwork(data);renderRows(data.nodes);renderTimeline(data.history);updateStats(data.nodes,data.history);
   populateSelects(data.nodes);
   focusBorrower(data.shock,false);
+  markStorybarStep(3);
+}
+
+function setBusy(button, busy, busyLabel){
+  if(!button) return;
+  if(busy){
+    button.dataset.originalLabel = button.querySelector(".btn-label")?.textContent || button.textContent;
+    const label = button.querySelector(".btn-label");
+    if(label) label.textContent = busyLabel; else button.textContent = busyLabel;
+    button.disabled = true;
+  } else {
+    const label = button.querySelector(".btn-label");
+    if(label) label.textContent = button.dataset.originalLabel || label.textContent;
+    button.disabled = false;
+  }
 }
 
 async function run(){
-  const p=new URLSearchParams({shock:$("shock").value,size:$("shockSize").value,rounds:$("rounds").value});
-  const res=await fetch(`/api/state?${p}`); render(await res.json());
+  const btn=$("run");
+  setBusy(btn, true, "Simulating…");
+  $("graphLoading").hidden = false;
+  try{
+    const p=new URLSearchParams({shock:$("shock").value,size:$("shockSize").value,rounds:$("rounds").value});
+    const res=await fetch(`/api/state?${p}`);
+    if(!res.ok) throw new Error("Request failed");
+    render(await res.json());
+    toast(`Ripple simulated for ${$("rounds").value} round(s).`);
+  }catch(err){
+    toast("Could not run the simulation. Check the server and try again.", "error");
+  }finally{
+    setBusy(btn, false);
+    $("graphLoading").hidden = true;
+  }
 }
 
 async function intervention(){
-  const res=await fetch("/api/intervention",{method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({target:$("target").value,action:$("action").value})});
-  const x=await res.json();
-  const saved=Math.max(0,x.affected_before-x.affected_after);
-  $("interventionResult").innerHTML=`<b>${x.target}</b> → ${x.action.replace("_"," ")}<br>
-  High-risk before: <b>${x.affected_before}</b> • after: <b>${x.affected_after}</b><br>
-  <span style="color:#74e0ca">Estimated cascade reduction: ${saved} borrower(s)</span>`;
+  const btn=$("intervene");
+  setBusy(btn, true, "Comparing…");
+  try{
+    const res=await fetch("/api/intervention",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({target:$("target").value,action:$("action").value})});
+    if(!res.ok) throw new Error("Request failed");
+    const x=await res.json();
+    const saved=Math.max(0,x.affected_before-x.affected_after);
+    $("interventionResult").classList.remove("empty");
+    $("interventionResult").innerHTML=`<b>${x.target}</b> → ${x.action_label||x.action.replace("_"," ")}<br>
+    High-risk before: <b>${x.affected_before}</b> • after: <b>${x.affected_after}</b><br>
+    <span style="color:#74e0ca">Estimated cascade reduction: ${saved} borrower(s)</span>`;
+    markStorybarStep(4);
+    toast(saved > 0 ? `That intervention pulls ${saved} borrower(s) back from high risk.` : "That intervention didn't change the high-risk count this time — try a different action.");
+  }catch(err){
+    toast("Could not compare the intervention. Check the server and try again.", "error");
+  }finally{
+    setBusy(btn, false);
+  }
 }
 
 $("shockSize").addEventListener("input",()=>{$("shockValue").textContent=$("shockSize").value});
 $("run").addEventListener("click",run);
-$("shock").addEventListener("change",()=>{updateSelectorHints();run()});
+$("shock").addEventListener("change",()=>{updateSelectorHints();markStorybarStep(2);run()});
 $("target").addEventListener("change",updateSelectorHints);
 $("intervene").addEventListener("click",intervention);
 $("highRiskOnly").addEventListener("click",()=>{
@@ -145,4 +215,124 @@ $("highRiskOnly").addEventListener("click",()=>{
   $("target").innerHTML=risky.map(n=>`<option value="${n.id}">🔴 ${n.id} — ${n.name} (${Math.round(n.stress)}%)</option>`).join("");
   $("target").value=risky[0].id;updateSelectorHints();
 });
+
+/* ---------- Info-dot tooltips (touch + mouse + keyboard) ---------- */
+(function initInfoDots(){
+  const host = $("tipHost");
+  function show(el){
+    const tip = el.dataset.tip;
+    if(!tip) return;
+    host.textContent = tip;
+    host.hidden = false;
+    const r = el.getBoundingClientRect();
+    const top = r.bottom + 8;
+    let left = r.left;
+    const maxLeft = window.innerWidth - 250;
+    if(left > maxLeft) left = maxLeft;
+    host.style.top = `${top}px`;
+    host.style.left = `${Math.max(8,left)}px`;
+  }
+  function hide(){ host.hidden = true; }
+  document.addEventListener("mouseover", e=>{
+    if(e.target.classList?.contains("info-dot")) show(e.target);
+  });
+  document.addEventListener("mouseout", e=>{
+    if(e.target.classList?.contains("info-dot")) hide();
+  });
+  document.addEventListener("focusin", e=>{
+    if(e.target.classList?.contains("info-dot")) show(e.target);
+  });
+  document.addEventListener("focusout", e=>{
+    if(e.target.classList?.contains("info-dot")) hide();
+  });
+  document.addEventListener("click", e=>{
+    if(e.target.classList?.contains("info-dot")){ e.preventDefault(); show(e.target); setTimeout(hide, 3500); }
+  });
+})();
+
+/* ---------- Guided tour ---------- */
+(function initTour(){
+  const steps = [
+    { target: "#controlsPanel", title: "Start here: pick a spark", body: "Choose which borrower feels the first shock, and drag the slider to decide how big it is. Everything else in the app reacts to this choice." },
+    { target: "#run", title: "Run the simulation", body: "Create ripple runs the shock forward for several rounds, letting stress spill over into connected borrowers before naturally decaying." },
+    { target: "#graphPanel", title: "Read the network map", body: "Each circle is a borrower — size and color show stress. Line thickness shows how strong a connection is. Click any node or edge to inspect it." },
+    { target: "#focusPanel", title: "Separate cause from symptom", body: "This panel is the key idea: it splits a borrower's own finances from pressure arriving through their network, so you don't blame the wrong person." },
+    { target: "#chartPanel", title: "Watch the ripple rise and fall", body: "Stress is damped each round, so a shock can spread for a while and then die out — the timeline shows exactly when it peaked." },
+    { target: "#interventionPanel", title: "Test a fix before you commit", body: "Pick a target and an action, then compare how many borrowers are pulled back below the high-risk line. Small, targeted help can stop the whole cascade." }
+  ];
+  let i = 0;
+  const overlay = $("tourOverlay"), spotlight = $("tourSpotlight"), card = $("tourCard");
+  const SEEN_KEY = "rippleTutorialSeen";
+
+  function place(){
+    const step = steps[i];
+    const el = document.querySelector(step.target);
+    if(!el){ next(); return; }
+    const r = el.getBoundingClientRect();
+    const pad = 10;
+    spotlight.style.top = `${r.top - pad}px`;
+    spotlight.style.left = `${r.left - pad}px`;
+    spotlight.style.width = `${r.width + pad*2}px`;
+    spotlight.style.height = `${r.height + pad*2}px`;
+
+    $("tourStepNum").textContent = i+1;
+    $("tourStepTotal").textContent = steps.length;
+    $("tourTitle").textContent = step.title;
+    $("tourBody").textContent = step.body;
+    $("tourBack").disabled = i === 0;
+    $("tourNext").querySelector ? null : null;
+    $("tourNext").textContent = i === steps.length-1 ? "Finish" : "Next";
+
+    // position card near the element, keeping it on-screen
+    const cardWidth = 300;
+    let top = r.bottom + 18;
+    let left = r.left;
+    if(top + 220 > window.innerHeight) top = Math.max(14, r.top - 230);
+    if(left + cardWidth > window.innerWidth - 14) left = window.innerWidth - cardWidth - 14;
+    if(left < 14) left = 14;
+    card.style.top = `${top}px`;
+    card.style.left = `${left}px`;
+
+    el.scrollIntoView({block:"center", behavior:"smooth"});
+  }
+
+  function open(){
+    i = 0;
+    overlay.hidden = false;
+    document.body.style.overflow = "hidden";
+    requestAnimationFrame(place);
+  }
+  function close(){
+    overlay.hidden = true;
+    document.body.style.overflow = "";
+    localStorage.setItem(SEEN_KEY, "1");
+  }
+  function next(){
+    if(i >= steps.length-1){ close(); return; }
+    i++; place();
+  }
+  function back(){
+    if(i <= 0) return;
+    i--; place();
+  }
+
+  $("startTour").addEventListener("click", open);
+  $("replayTour").addEventListener("click", open);
+  $("helpFab").addEventListener("click", open);
+  $("tourNext").addEventListener("click", next);
+  $("tourBack").addEventListener("click", back);
+  $("tourSkip").addEventListener("click", close);
+  window.addEventListener("resize", ()=>{ if(!overlay.hidden) place(); });
+  document.addEventListener("keydown", e=>{
+    if(overlay.hidden) return;
+    if(e.key === "Escape") close();
+    if(e.key === "ArrowRight") next();
+    if(e.key === "ArrowLeft") back();
+  });
+
+  if(!localStorage.getItem(SEEN_KEY)){
+    setTimeout(open, 500);
+  }
+})();
+
 run();

@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="en">
 <head>
@@ -10,49 +9,52 @@
 <body>
 <header class="hero">
   <div>
-    <div class="eyebrow">MICROFINANCE • RISK SIMULATION</div>
+    <div class="eyebrow">MICROFINANCE · RISK SIMULATION</div>
     <h1>One small shock.<br><span>A much bigger ripple.</span></h1>
     <p class="hero-copy">See how financial stress can travel through a borrower group — and where a small intervention can stop the cascade.</p>
+    <div class="hero-actions">
+      <button id="startTour" class="ghost-btn" type="button">▶ Take the 60-second tour</button>
+    </div>
   </div>
   <div class="hero-note">
     <b>Butterfly effect</b>
-    <span>A borrower can be healthy on paper and still become vulnerable because of who they are connected to.</span>
+    <span>A borrower can look healthy on paper and still become vulnerable because of who they are connected to.</span>
   </div>
 </header>
 
 <main>
-  <section class="storybar panel">
-    <div class="step active"><strong>01</strong><span>Pick a spark</span></div>
+  <section class="storybar panel" id="storybar">
+    <div class="step active" data-step="1"><strong>01</strong><span>Pick a spark</span></div>
     <div class="arrow">→</div>
-    <div class="step"><strong>02</strong><span>Watch it ripple</span></div>
+    <div class="step" data-step="2"><strong>02</strong><span>Watch it ripple</span></div>
     <div class="arrow">→</div>
-    <div class="step"><strong>03</strong><span>Find hidden risk</span></div>
+    <div class="step" data-step="3"><strong>03</strong><span>Find hidden risk</span></div>
     <div class="arrow">→</div>
-    <div class="step"><strong>04</strong><span>Stop the cascade</span></div>
+    <div class="step" data-step="4"><strong>04</strong><span>Stop the cascade</span></div>
   </section>
 
-  <section class="controls panel">
+  <section class="controls panel" id="controlsPanel">
     <div class="control-main">
       <div>
-        <label>1. Choose the borrower who gets the first shock</label>
-        <select id="shock"></select>
+        <label for="shock">1. Choose the borrower who gets the first shock</label>
+        <select id="shock" aria-describedby="shockHint"></select>
         <small id="shockHint" class="select-hint"></small>
       </div>
       <div>
-        <label>How big is the shock?</label>
+        <label for="shockSize">How big is the shock? <button type="button" class="info-dot" data-tip="A bigger shock pushes that borrower's own stress score up before the ripple spreads to their connections.">?</button></label>
         <div class="range-row"><input id="shockSize" type="range" min="0" max="70" value="30"><b id="shockValue">30</b></div>
       </div>
       <div>
-        <label>How many ripple rounds?</label>
+        <label for="rounds">How many ripple rounds?</label>
         <select id="rounds">
           <option>1</option><option>2</option><option selected>4</option><option>6</option>
         </select>
       </div>
     </div>
-    <button id="run">Create ripple →</button>
+    <button id="run" type="button"><span class="btn-label">Create ripple →</span></button>
   </section>
 
-  <section class="insight panel">
+  <section class="insight panel" aria-live="polite">
     <div class="insight-icon">↯</div>
     <div>
       <b id="headline">Ready to run a scenario</b>
@@ -61,19 +63,19 @@
   </section>
 
   <section class="stats">
-    <div class="stat"><span>Borrowers at high risk</span><b id="highRisk">-</b><small>stress ≥ 50</small></div>
-    <div class="stat"><span>Hidden network risk</span><b id="networkRisk">-</b><small>risk driven mainly by neighbors</small></div>
-    <div class="stat"><span>Average stress</span><b id="avgStress">-</b><small>across the whole group</small></div>
-    <div class="stat"><span>Peak ripple</span><b id="peakRound">-</b><small>highest average stress round</small></div>
+    <div class="stat"><span class="stat-icon">🔴</span><span>Borrowers at high risk</span><b id="highRisk">—</b><small>stress ≥ 50</small></div>
+    <div class="stat"><span class="stat-icon">🕸️</span><span>Hidden network risk</span><b id="networkRisk">—</b><small>risk driven mainly by neighbors</small></div>
+    <div class="stat"><span class="stat-icon">📊</span><span>Average stress</span><b id="avgStress">—</b><small>across the whole group</small></div>
+    <div class="stat"><span class="stat-icon">⛰️</span><span>Peak ripple</span><b id="peakRound">—</b><small>highest average stress round</small></div>
   </section>
 
   <section class="grid">
-    <div class="panel graph-panel">
+    <div class="panel graph-panel" id="graphPanel">
       <div class="panel-head">
         <div>
           <div class="eyebrow">LIVE MAP</div>
           <h2>The borrower network</h2>
-          <p>Thicker lines mean stronger connections. Node size and color show stress.</p>
+          <p>Thicker lines mean stronger connections. Node size and color show stress. Click a node or an edge.</p>
         </div>
         <div class="legend">
           <span><i class="dot low"></i> Healthy</span>
@@ -81,17 +83,20 @@
           <span><i class="dot high"></i> High risk</span>
         </div>
       </div>
-      <svg id="network" viewBox="0 0 860 560"></svg>
+      <div class="svg-wrap">
+        <svg id="network" viewBox="0 0 860 560" role="img" aria-label="Borrower relationship network"></svg>
+        <div id="graphLoading" class="graph-loading" hidden><div class="spinner"></div><span>Simulating the ripple…</span></div>
+      </div>
       <div id="relationshipHint" class="relationship-hint">Click any borrower to inspect their connections.</div>
     </div>
 
-    <div class="panel focus-panel">
+    <div class="panel focus-panel" id="focusPanel">
       <div class="eyebrow">WHY THIS BORROWER?</div>
       <h2 id="focusTitle">Select a borrower</h2>
       <div class="risk-meter"><div id="focusMeter"></div></div>
       <div class="focus-numbers">
-        <div><span>Own finances</span><b id="focusOwn">—</b></div>
-        <div><span>Network pressure</span><b id="focusNetwork">—</b></div>
+        <div><span>Own finances <button type="button" class="info-dot" data-tip="Estimated from this borrower's debt-to-income ratio and how many months their buffer could cover payments alone.">?</button></span><b id="focusOwn">—</b></div>
+        <div><span>Network pressure <button type="button" class="info-dot" data-tip="How much stress is arriving from this borrower's connections — guarantees, shared income sources, locality and group ties.">?</button></span><b id="focusNetwork">—</b></div>
       </div>
       <div class="diagnosis" id="focusDiagnosis">Click a node or choose a borrower above.</div>
       <div class="explanation" id="focusExplanation">The app separates direct deterioration from stress that arrives through relationships.</div>
@@ -99,7 +104,7 @@
   </section>
 
   <section class="grid lower">
-    <div class="panel chart-panel">
+    <div class="panel chart-panel" id="chartPanel">
       <div class="panel-head">
         <div>
           <div class="eyebrow">RIPPLE OVER TIME</div>
@@ -110,31 +115,55 @@
       <div id="timeline"></div>
     </div>
 
-    <div class="panel intervention-panel">
+    <div class="panel intervention-panel" id="interventionPanel">
       <div class="eyebrow">WHAT SHOULD WE DO?</div>
       <h2>Try a targeted intervention</h2>
       <p class="section-copy">Help the source of the shock instead of penalizing healthy borrowers across the group.</p>
-      <label>Target</label>
+      <label for="target">Target</label>
       <select id="target"></select>
       <small id="targetHint" class="select-hint"></small>
       <button id="highRiskOnly" class="secondary" type="button">Show high-risk only</button>
-      <label>Intervention</label>
+      <label for="action">Intervention</label>
       <select id="action">
         <option value="relief">Temporary repayment relief</option>
         <option value="grace">Grace period</option>
         <option value="guarantee">Reduce guarantee pressure</option>
         <option value="coaching">Income / budgeting coaching</option>
       </select>
-      <button id="intervene">Compare intervention →</button>
-      <div class="result" id="interventionResult">Run a ripple first, then test which action reduces the cascade.</div>
+      <button id="intervene" type="button"><span class="btn-label">Compare intervention →</span></button>
+      <div class="result" id="interventionResult" aria-live="polite">Run a ripple first, then test which action reduces the cascade.</div>
     </div>
   </section>
 </main>
 
 <footer>
-  <span><b>Ripple</b> • interpretable simulation</span>
+  <span><b>Ripple</b> · interpretable simulation</span>
   <span>Demo uses synthetic borrower data</span>
+  <button id="replayTour" type="button" class="ghost-btn small">Restart tutorial</button>
 </footer>
+
+<button id="helpFab" type="button" aria-label="Open tutorial" title="Take the tour">?</button>
+
+<div id="toastHost" class="toast-host" aria-live="polite"></div>
+
+<div id="tourOverlay" class="tour-overlay" hidden>
+  <div id="tourSpotlight" class="tour-spotlight"></div>
+  <div id="tourCard" class="tour-card" role="dialog" aria-modal="true" aria-labelledby="tourTitle">
+    <div class="tour-progress"><span id="tourStepNum">1</span> / <span id="tourStepTotal">6</span></div>
+    <h3 id="tourTitle"></h3>
+    <p id="tourBody"></p>
+    <div class="tour-actions">
+      <button id="tourSkip" type="button" class="ghost-btn small">Skip tour</button>
+      <div class="tour-nav">
+        <button id="tourBack" type="button" class="secondary small">Back</button>
+        <button id="tourNext" type="button" class="small">Next</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="tipHost" class="tip-host" hidden></div>
+
 <script src="/static/app.js"></script>
 </body>
 </html>
