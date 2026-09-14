@@ -1,0 +1,140 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ripple — The Butterfly Effect in Microfinance</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="hero">
+  <div>
+    <div class="eyebrow">MICROFINANCE • RISK SIMULATION</div>
+    <h1>One small shock.<br><span>A much bigger ripple.</span></h1>
+    <p class="hero-copy">See how financial stress can travel through a borrower group — and where a small intervention can stop the cascade.</p>
+  </div>
+  <div class="hero-note">
+    <b>Butterfly effect</b>
+    <span>A borrower can be healthy on paper and still become vulnerable because of who they are connected to.</span>
+  </div>
+</header>
+
+<main>
+  <section class="storybar panel">
+    <div class="step active"><strong>01</strong><span>Pick a spark</span></div>
+    <div class="arrow">→</div>
+    <div class="step"><strong>02</strong><span>Watch it ripple</span></div>
+    <div class="arrow">→</div>
+    <div class="step"><strong>03</strong><span>Find hidden risk</span></div>
+    <div class="arrow">→</div>
+    <div class="step"><strong>04</strong><span>Stop the cascade</span></div>
+  </section>
+
+  <section class="controls panel">
+    <div class="control-main">
+      <div>
+        <label>1. Choose the borrower who gets the first shock</label>
+        <select id="shock"></select>
+        <small id="shockHint" class="select-hint"></small>
+      </div>
+      <div>
+        <label>How big is the shock?</label>
+        <div class="range-row"><input id="shockSize" type="range" min="0" max="70" value="30"><b id="shockValue">30</b></div>
+      </div>
+      <div>
+        <label>How many ripple rounds?</label>
+        <select id="rounds">
+          <option>1</option><option>2</option><option selected>4</option><option>6</option>
+        </select>
+      </div>
+    </div>
+    <button id="run">Create ripple →</button>
+  </section>
+
+  <section class="insight panel">
+    <div class="insight-icon">↯</div>
+    <div>
+      <b id="headline">Ready to run a scenario</b>
+      <p id="subheadline">Choose a borrower, create a shock, and see whether the problem stays local or starts spreading.</p>
+    </div>
+  </section>
+
+  <section class="stats">
+    <div class="stat"><span>Borrowers at high risk</span><b id="highRisk">-</b><small>stress ≥ 50</small></div>
+    <div class="stat"><span>Hidden network risk</span><b id="networkRisk">-</b><small>risk driven mainly by neighbors</small></div>
+    <div class="stat"><span>Average stress</span><b id="avgStress">-</b><small>across the whole group</small></div>
+    <div class="stat"><span>Peak ripple</span><b id="peakRound">-</b><small>highest average stress round</small></div>
+  </section>
+
+  <section class="grid">
+    <div class="panel graph-panel">
+      <div class="panel-head">
+        <div>
+          <div class="eyebrow">LIVE MAP</div>
+          <h2>The borrower network</h2>
+          <p>Thicker lines mean stronger connections. Node size and color show stress.</p>
+        </div>
+        <div class="legend">
+          <span><i class="dot low"></i> Healthy</span>
+          <span><i class="dot med"></i> Stressed</span>
+          <span><i class="dot high"></i> High risk</span>
+        </div>
+      </div>
+      <svg id="network" viewBox="0 0 860 560"></svg>
+      <div id="relationshipHint" class="relationship-hint">Click any borrower to inspect their connections.</div>
+    </div>
+
+    <div class="panel focus-panel">
+      <div class="eyebrow">WHY THIS BORROWER?</div>
+      <h2 id="focusTitle">Select a borrower</h2>
+      <div class="risk-meter"><div id="focusMeter"></div></div>
+      <div class="focus-numbers">
+        <div><span>Own finances</span><b id="focusOwn">—</b></div>
+        <div><span>Network pressure</span><b id="focusNetwork">—</b></div>
+      </div>
+      <div class="diagnosis" id="focusDiagnosis">Click a node or choose a borrower above.</div>
+      <div class="explanation" id="focusExplanation">The app separates direct deterioration from stress that arrives through relationships.</div>
+    </div>
+  </section>
+
+  <section class="grid lower">
+    <div class="panel chart-panel">
+      <div class="panel-head">
+        <div>
+          <div class="eyebrow">RIPPLE OVER TIME</div>
+          <h2>How the shock spreads</h2>
+          <p>Stress is damped each round, so the ripple can also die out.</p>
+        </div>
+      </div>
+      <div id="timeline"></div>
+    </div>
+
+    <div class="panel intervention-panel">
+      <div class="eyebrow">WHAT SHOULD WE DO?</div>
+      <h2>Try a targeted intervention</h2>
+      <p class="section-copy">Help the source of the shock instead of penalizing healthy borrowers across the group.</p>
+      <label>Target</label>
+      <select id="target"></select>
+      <small id="targetHint" class="select-hint"></small>
+      <button id="highRiskOnly" class="secondary" type="button">Show high-risk only</button>
+      <label>Intervention</label>
+      <select id="action">
+        <option value="relief">Temporary repayment relief</option>
+        <option value="grace">Grace period</option>
+        <option value="guarantee">Reduce guarantee pressure</option>
+        <option value="coaching">Income / budgeting coaching</option>
+      </select>
+      <button id="intervene">Compare intervention →</button>
+      <div class="result" id="interventionResult">Run a ripple first, then test which action reduces the cascade.</div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span><b>Ripple</b> • interpretable simulation</span>
+  <span>Demo uses synthetic borrower data</span>
+</footer>
+<script src="/static/app.js"></script>
+</body>
+</html>
