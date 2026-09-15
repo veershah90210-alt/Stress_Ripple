@@ -151,44 +151,74 @@ function render(data){
 
 function setBusy(button, busy, busyLabel){
   if(!button) return;
+  // The default label is captured once, up front, and stored on the element.
+  // Reading "current text" while busy (the old approach) is what caused the
+  // button to get stuck: if two runs overlapped, the second one could capture
+  // "Simulating…" itself as the label to restore to.
+  if(!button.dataset.defaultLabel){
+    button.dataset.defaultLabel = button.querySelector(".btn-label")?.textContent || button.textContent;
+  }
+  const label = button.querySelector(".btn-label");
   if(busy){
-    button.dataset.originalLabel = button.querySelector(".btn-label")?.textContent || button.textContent;
-    const label = button.querySelector(".btn-label");
     if(label) label.textContent = busyLabel; else button.textContent = busyLabel;
     button.disabled = true;
   } else {
-    const label = button.querySelector(".btn-label");
-    if(label) label.textContent = button.dataset.originalLabel || label.textContent;
+    if(label) label.textContent = button.dataset.defaultLabel; else button.textContent = button.dataset.defaultLabel;
     button.disabled = false;
   }
 }
 
+// Token guards: if a newer run()/intervention() call starts before an older
+// one's fetch resolves, the older call becomes stale and must not touch the
+// UI when it finally finishes — otherwise it can leave the button/spinner
+// stuck showing "busy" forever, which is what "keeps loading" looked like.
+let runToken = 0;
+let interventionToken = 0;
+
 async function run(){
+  const myToken = ++runToken;
   const btn=$("run");
   setBusy(btn, true, "Simulating…");
   $("graphLoading").hidden = false;
+  const controller = new AbortController();
+  const timeout = setTimeout(()=>controller.abort(), 8000); // never let this hang forever
   try{
     const p=new URLSearchParams({shock:$("shock").value,size:$("shockSize").value,rounds:$("rounds").value});
-    const res=await fetch(`/api/state?${p}`);
+    const res=await fetch(`/api/state?${p}`, { signal: controller.signal });
+    if(myToken !== runToken) return; // superseded by a newer request
     if(!res.ok) throw new Error("Request failed");
     render(await res.json());
+    if(myToken !== runToken) return;
     toast(`Ripple simulated for ${$("rounds").value} round(s).`);
   }catch(err){
-    toast("Could not run the simulation. Check the server and try again.", "error");
+    if(myToken === runToken){
+      const msg = err?.name === "AbortError"
+        ? "The simulation took too long and was cancelled. Check the server is running and try again."
+        : "Could not run the simulation. Check the server and try again.";
+      toast(msg, "error");
+    }
   }finally{
-    setBusy(btn, false);
-    $("graphLoading").hidden = true;
+    clearTimeout(timeout);
+    if(myToken === runToken){
+      setBusy(btn, false);
+      $("graphLoading").hidden = true;
+    }
   }
 }
 
 async function intervention(){
+  const myToken = ++interventionToken;
   const btn=$("intervene");
   setBusy(btn, true, "Comparing…");
+  const controller = new AbortController();
+  const timeout = setTimeout(()=>controller.abort(), 8000);
   try{
     const res=await fetch("/api/intervention",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({target:$("target").value,action:$("action").value})});
+      body:JSON.stringify({target:$("target").value,action:$("action").value}), signal: controller.signal});
+    if(myToken !== interventionToken) return;
     if(!res.ok) throw new Error("Request failed");
     const x=await res.json();
+    if(myToken !== interventionToken) return;
     const saved=Math.max(0,x.affected_before-x.affected_after);
     $("interventionResult").classList.remove("empty");
     $("interventionResult").innerHTML=`<b>${x.target}</b> → ${x.action_label||x.action.replace("_"," ")}<br>
@@ -197,9 +227,15 @@ async function intervention(){
     markStorybarStep(4);
     toast(saved > 0 ? `That intervention pulls ${saved} borrower(s) back from high risk.` : "That intervention didn't change the high-risk count this time — try a different action.");
   }catch(err){
-    toast("Could not compare the intervention. Check the server and try again.", "error");
+    if(myToken === interventionToken){
+      const msg = err?.name === "AbortError"
+        ? "The comparison took too long and was cancelled. Check the server is running and try again."
+        : "Could not compare the intervention. Check the server and try again.";
+      toast(msg, "error");
+    }
   }finally{
-    setBusy(btn, false);
+    clearTimeout(timeout);
+    if(myToken === interventionToken) setBusy(btn, false);
   }
 }
 
