@@ -49,8 +49,8 @@ def score_financial_pressure(b):
     return round(0.6 * ratio_score + 0.4 * liquidity_score, 1)
 
 
-def classify(b, neighbor_pressure=0):
-    own = max(score_financial_pressure(b), b["stress"])
+def classify(own_pressure, current_stress, neighbor_pressure=0):
+    own = max(own_pressure, current_stress)
     contagion = min(100, neighbor_pressure)
     if contagion >= 55 and own < 65:
         return "Vulnerable via network"
@@ -102,7 +102,9 @@ def build_state(shock_id=None, shock_size=0.0, rounds=3):
         weighted = sum(max(0, stress[n] - 35) * w for n, w, _ in neighbors[b["id"]])
         pressure = min(100, weighted * 0.85)
         own = score_financial_pressure(b)
-        label = classify(b, pressure)
+        current_stress = stress[b["id"]]
+        combined_own = max(own, current_stress)
+        label = classify(own, current_stress, pressure)
         nodes.append({
             **b,
             "stress": round(stress[b["id"]], 1),
@@ -112,13 +114,13 @@ def build_state(shock_id=None, shock_size=0.0, rounds=3):
             "degree": len(neighbors[b["id"]]),
             "explanation": (
                 "Pressure is mostly direct: debt burden/liquidity is the main signal."
-                if own >= 68 and pressure < 45 else
+                if combined_own >= 68 and pressure < 45 else
                 "Pressure is mostly network-driven: nearby stressed borrowers raise exposure."
-                if pressure >= 55 and own < 65 else
+                if pressure >= 55 and combined_own < 65 else
                 "Both the borrower's own finances and network connections contribute."
-                if own >= 68 and pressure >= 45 else
+                if combined_own >= 68 and pressure >= 45 else
                 "Stress is present, but the current evidence suggests it remains contained."
-                if own >= 48 else
+                if combined_own >= 48 else
                 "No major direct or network pressure is detected right now."
             )
         })
