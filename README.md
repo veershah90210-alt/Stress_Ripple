@@ -1,5 +1,7 @@
 # Ripple — The Butterfly Effect in Microfinance
 
+Live Demo: https://stress-ripple.vercel.app/
+
 StressRipple is a hackathon prototype that models how financial stress can move through a connected microfinance group.
 
 ## Why it fits the "Butterfly Effect" theme
